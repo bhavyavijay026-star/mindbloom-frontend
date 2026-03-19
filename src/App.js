@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { 
-  ChevronRight, Shield, BarChart3, Moon, 
-  Monitor, Users, Heart, ArrowRight, CheckCircle2, Star, X, Info, Loader2
+  Shield, BarChart3, Heart, Monitor, CheckCircle2, Info, Loader2 
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -45,10 +44,10 @@ const REVIEWS = [
 export default function App() {
   const [view, setView] = useState('home'); 
   const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState([]); // Array format for Python API
+  const [answers, setAnswers] = useState([]); 
   const [results, setResults] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [priorities, setPriorities] = useState({ p1: '', p2: '' });
+  const [priorities, setPriorities] = useState({ p1: 'Analyzing...', p2: 'Analyzing...' });
   
   const { scrollYProgress } = useScroll();
 
@@ -69,7 +68,6 @@ export default function App() {
     } else {
       setIsSubmitting(true);
       try {
-        // Send to Render Backend
         const response = await fetch(BACKEND_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -78,12 +76,17 @@ export default function App() {
         
         const data = await response.json();
 
-        // Local Calculation for UI Display
+        // Calculate Category Scores for UI (1-5 Scale)
         const categories = [...new Set(QUESTIONS.map(q => q.cat))];
         const scores = {};
-        categories.forEach((c, idx) => {
-          const qList = updatedAnswers.slice(idx * 4, (idx + 1) * 4); // Basic split logic
-          scores[c] = qList.reduce((a, b) => a + b, 0) / qList.length;
+        
+        categories.forEach(c => {
+          const catQuestions = QUESTIONS.filter(q => q.cat === c);
+          const sum = catQuestions.reduce((acc, q) => {
+            const index = QUESTIONS.findIndex(question => question.id === q.id);
+            return acc + updatedAnswers[index];
+          }, 0);
+          scores[c] = sum / catQuestions.length;
         });
 
         setResults(scores);
@@ -166,27 +169,9 @@ export default function App() {
                 ))}
               </div>
             </section>
-
-            {/* REVIEWS */}
-            <section className="bg-slate-900 py-24 text-white">
-              <div className="max-w-6xl mx-auto px-6 text-center">
-                <h2 className="text-4xl font-black mb-16">Trusted by the community</h2>
-                <div className="grid md:grid-cols-3 gap-8 text-left">
-                  {REVIEWS.map((r, i) => (
-                    <div key={i} className="bg-slate-800 p-8 rounded-3xl border border-slate-700">
-                      <div className="flex text-teal-400 mb-4 font-bold tracking-tighter italic">"Best in Class"</div>
-                      <p className="text-slate-300 mb-6 italic">"{r.text}"</p>
-                      <p className="font-bold underline decoration-teal-500 underline-offset-4">{r.name}</p>
-                      <p className="text-xs text-slate-500 uppercase mt-1 font-bold">{r.role}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
           </motion.div>
         )}
 
-        {/* ASSESSMENT VIEW */}
         {view === 'assessment' && (
           <motion.div key="assess" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-w-3xl mx-auto px-6 py-20">
             {isSubmitting ? (
@@ -213,16 +198,16 @@ export default function App() {
                 <h2 className="text-3xl md:text-4xl font-black mb-4 tracking-tighter text-slate-800 text-center leading-tight">
                   {QUESTIONS[currentStep].text}
                 </h2>
-                <p className="text-center text-slate-400 font-medium mb-12 uppercase text-[10px] tracking-widest">Select intensity from 1 (Low) to 10 (High)</p>
+                <p className="text-center text-slate-400 font-medium mb-12 uppercase text-[10px] tracking-widest">Select intensity from 1 (Low) to 5 (High)</p>
 
-                <div className="flex flex-wrap justify-center gap-2 md:gap-3">
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
+                <div className="flex justify-center gap-3 md:gap-4">
+                  {[1, 2, 3, 4, 5].map((v) => (
                     <button 
                       key={v} 
                       onClick={() => handleAnswer(v)} 
-                      className="w-12 h-12 md:w-14 md:h-14 rounded-2xl border-2 border-slate-100 font-black text-lg
+                      className="w-16 h-16 md:w-20 md:h-20 rounded-3xl border-2 border-slate-100 font-black text-2xl
                                  transition-all hover:border-teal-500 hover:bg-teal-50 hover:scale-110 active:scale-95
-                                 flex items-center justify-center text-slate-400 hover:text-teal-600"
+                                 flex items-center justify-center text-slate-400 hover:text-teal-600 shadow-sm"
                     >
                       {v}
                     </button>
@@ -230,15 +215,14 @@ export default function App() {
                 </div>
 
                 <div className="flex justify-between mt-8 px-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">
-                  <span>Strongly Disagree</span>
-                  <span>Strongly Agree</span>
+                  <span>Not at all</span>
+                  <span>Extremely</span>
                 </div>
               </>
             )}
           </motion.div>
         )}
 
-        {/* RESULTS VIEW */}
         {view === 'results' && results && (
           <motion.div key="results" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="max-w-5xl mx-auto px-6 py-20">
             <div className="text-center mb-16">
@@ -252,14 +236,16 @@ export default function App() {
                 <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cat}</span>
-                    <span className={`h-2 w-2 rounded-full ${score > 7 ? 'bg-rose-500' : score > 4 ? 'bg-amber-500' : 'bg-teal-500'}`}></span>
+                    {/* Score based on 1-5 scale: >4 is high, >2.5 is mid */}
+                    <span className={`h-2 w-2 rounded-full ${score >= 4 ? 'bg-rose-500' : score > 2.5 ? 'bg-amber-500' : 'bg-teal-500'}`}></span>
                   </div>
                   <div className="flex items-end justify-between">
                     <div>
-                      <p className="text-xl font-black text-slate-800">{score > 7 ? 'High' : score > 4 ? 'Mid' : 'Low'}</p>
+                      <p className="text-xl font-black text-slate-800">{score >= 4 ? 'High' : score > 2.5 ? 'Mid' : 'Low'}</p>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Intensity Level</p>
                     </div>
-                    <span className="text-2xl font-black text-teal-600 italic">{(score * 10).toFixed(0)}%</span>
+                    {/* Multiply by 20 to get percentage from 1-5 scale */}
+                    <span className="text-2xl font-black text-teal-600 italic">{(score * 20).toFixed(0)}%</span>
                   </div>
                 </div>
               ))}
@@ -277,10 +263,6 @@ export default function App() {
                   "Your current patterns suggest a strong correlation between <strong>{priorities.p1}</strong> and your overall wellness. We recommend setting small boundaries this week."
                 </p>
                 <button onClick={reset} className="bg-teal-500 text-white px-12 py-4 rounded-full font-black hover:scale-105 transition-transform active:scale-95 shadow-xl">Retake Assessment</button>
-              </div>
-              <div className="w-full md:w-1/3 bg-slate-800 p-8 rounded-[2rem] border border-slate-700">
-                <h4 className="font-bold mb-4 flex items-center gap-2 text-teal-400"><Info size={18} /> Next Step</h4>
-                <p className="text-sm text-slate-300 leading-relaxed">Focus on <strong>{priorities.p1}</strong> first. High scores here often impact other areas like sleep and mood. Try a 5-minute reflection tonight.</p>
               </div>
             </div>
           </motion.div>
