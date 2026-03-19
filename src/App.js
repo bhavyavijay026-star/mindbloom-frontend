@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Shield, BarChart3, Moon, 
-  Monitor, Users, Heart, ArrowRight, CheckCircle2, Star, X, Info
+  Monitor, Users, Heart, ArrowRight, CheckCircle2, Star, X, Info, Loader2
 } from 'lucide-react';
 
-// --- UPDATED DATASET (25 Questions / 6 Categories) ---
+// --- CONFIGURATION ---
+const BACKEND_URL = "https://mindbloom-host.onrender.com/submit";
+
 const QUESTIONS = [
   { id: 'q1', cat: 'Emotional Instability', text: 'I often feel physical tension, like a tight chest or stomach ache, when I am stressed.' },
   { id: 'q2', cat: 'Emotional Instability', text: 'I feel like I’m pretending to be okay.' },
@@ -43,8 +45,10 @@ const REVIEWS = [
 export default function App() {
   const [view, setView] = useState('home'); 
   const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState({});
+  const [answers, setAnswers] = useState([]); // Array format for Python API
   const [results, setResults] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [priorities, setPriorities] = useState({ p1: '', p2: '' });
   
   const { scrollYProgress } = useScroll();
 
@@ -56,29 +60,48 @@ export default function App() {
   const textOpacity = useTransform(scrollYProgress, [0.1, 0.2], [0, 1]);
 
   // LOGIC
-  const handleAnswer = (val) => {
-    const newAnswers = { ...answers, [QUESTIONS[currentStep].id]: val };
-    setAnswers(newAnswers);
+  const handleAnswer = async (val) => {
+    const updatedAnswers = [...answers, val];
+    
     if (currentStep < QUESTIONS.length - 1) {
+      setAnswers(updatedAnswers);
       setCurrentStep(currentStep + 1);
     } else {
-      // Calculate scores for all 6 categories
-      const categories = [...new Set(QUESTIONS.map(q => q.cat))];
-      const scores = {};
-      categories.forEach(c => {
-        const qList = QUESTIONS.filter(q => q.cat === c);
-        scores[c] = qList.reduce((acc, q) => acc + newAnswers[q.id], 0) / qList.length;
-      });
-      setResults(scores);
-      setView('results');
-      window.scrollTo(0, 0);
+      setIsSubmitting(true);
+      try {
+        // Send to Render Backend
+        const response = await fetch(BACKEND_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answers: updatedAnswers })
+        });
+        
+        const data = await response.json();
+
+        // Local Calculation for UI Display
+        const categories = [...new Set(QUESTIONS.map(q => q.cat))];
+        const scores = {};
+        categories.forEach((c, idx) => {
+          const qList = updatedAnswers.slice(idx * 4, (idx + 1) * 4); // Basic split logic
+          scores[c] = qList.reduce((a, b) => a + b, 0) / qList.length;
+        });
+
+        setResults(scores);
+        setPriorities({ p1: data.p1, p2: data.p2 });
+        setView('results');
+        window.scrollTo(0, 0);
+      } catch (error) {
+        alert("Server error. Please ensure Render is online.");
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
   const reset = () => {
     setView('home');
     setCurrentStep(0);
-    setAnswers({});
+    setAnswers([]);
     setResults(null);
     window.scrollTo(0, 0);
   };
@@ -95,7 +118,7 @@ export default function App() {
           onClick={() => setView('assessment')}
           className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-2.5 rounded-full font-bold transition-all shadow-lg shadow-teal-100/50 text-sm"
         >
-          Start Assessment
+          {view === 'results' ? 'New Test' : 'Start Assessment'}
         </button>
       </nav>
 
@@ -106,14 +129,14 @@ export default function App() {
             <section className="h-[90vh] flex flex-col items-center justify-center relative overflow-hidden">
               <div className="relative flex items-center justify-center scale-90 md:scale-110">
                 <motion.div style={{ x: brainMoveLeft, opacity: brainOpacity }} className="z-20">
-                  <img src="/left_brain.png" alt="Left" className="w-52 h-auto object-contain" />
+                  <img src={`${process.env.PUBLIC_URL}/left_brain.png`} alt="Left" className="w-52 h-auto object-contain" />
                 </motion.div>
                 <motion.div style={{ scale: textScale, opacity: textOpacity }} className="absolute z-10 text-center">
                   <h1 className="text-7xl md:text-8xl font-black text-teal-600 tracking-tighter italic">MindBloom</h1>
                   <p className="text-slate-400 font-bold uppercase tracking-[0.4em] text-xs">Untangle your mind</p>
                 </motion.div>
                 <motion.div style={{ x: brainMoveRight, opacity: brainOpacity }} className="z-20">
-                  <img src="/right_brain.png" alt="Right" className="w-52 h-auto object-contain" />
+                  <img src={`${process.env.PUBLIC_URL}/right_brain.png`} alt="Right" className="w-52 h-auto object-contain" />
                 </motion.div>
               </div>
               <motion.div animate={{ y: [0, 10, 0] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute bottom-10 text-slate-300 flex flex-col items-center gap-2">
@@ -163,50 +186,59 @@ export default function App() {
           </motion.div>
         )}
 
-        {/* --- UPDATED ASSESSMENT VIEW (1-10 Scale) --- */}
+        {/* ASSESSMENT VIEW */}
         {view === 'assessment' && (
           <motion.div key="assess" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-w-3xl mx-auto px-6 py-20">
-            <div className="mb-12 text-center">
-              <div className="flex justify-between text-[10px] font-black text-teal-600 uppercase mb-3 tracking-[0.2em]">
-                <span>{QUESTIONS[currentStep].cat}</span>
-                <span>Question {currentStep + 1} / 25</span>
+            {isSubmitting ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <Loader2 className="animate-spin text-teal-600 mb-4" size={48} />
+                <h3 className="text-2xl font-black italic text-slate-700">Analyzing patterns...</h3>
               </div>
-              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                <motion.div 
-                  className="h-full bg-teal-500" 
-                  initial={{ width: 0 }} 
-                  animate={{ width: `${((currentStep + 1) / 25) * 100}%` }} 
-                />
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="mb-12 text-center">
+                  <div className="flex justify-between text-[10px] font-black text-teal-600 uppercase mb-3 tracking-[0.2em]">
+                    <span>{QUESTIONS[currentStep].cat}</span>
+                    <span>Question {currentStep + 1} / 25</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-teal-500" 
+                      initial={{ width: 0 }} 
+                      animate={{ width: `${((currentStep + 1) / 25) * 100}%` }} 
+                    />
+                  </div>
+                </div>
 
-            <h2 className="text-3xl md:text-4xl font-black mb-4 tracking-tighter text-slate-800 text-center leading-tight">
-              {QUESTIONS[currentStep].text}
-            </h2>
-            <p className="text-center text-slate-400 font-medium mb-12 uppercase text-[10px] tracking-widest">Select intensity from 1 (Low) to 10 (High)</p>
+                <h2 className="text-3xl md:text-4xl font-black mb-4 tracking-tighter text-slate-800 text-center leading-tight">
+                  {QUESTIONS[currentStep].text}
+                </h2>
+                <p className="text-center text-slate-400 font-medium mb-12 uppercase text-[10px] tracking-widest">Select intensity from 1 (Low) to 10 (High)</p>
 
-            <div className="flex flex-wrap justify-center gap-2 md:gap-3">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
-                <button 
-                  key={v} 
-                  onClick={() => handleAnswer(v)} 
-                  className="w-12 h-12 md:w-14 md:h-14 rounded-2xl border-2 border-slate-100 font-black text-lg
-                             transition-all hover:border-teal-500 hover:bg-teal-50 hover:scale-110 active:scale-95
-                             flex items-center justify-center text-slate-400 hover:text-teal-600"
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
+                <div className="flex flex-wrap justify-center gap-2 md:gap-3">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
+                    <button 
+                      key={v} 
+                      onClick={() => handleAnswer(v)} 
+                      className="w-12 h-12 md:w-14 md:h-14 rounded-2xl border-2 border-slate-100 font-black text-lg
+                                 transition-all hover:border-teal-500 hover:bg-teal-50 hover:scale-110 active:scale-95
+                                 flex items-center justify-center text-slate-400 hover:text-teal-600"
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
 
-            <div className="flex justify-between mt-8 px-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">
-              <span>Strongly Disagree</span>
-              <span>Strongly Agree</span>
-            </div>
+                <div className="flex justify-between mt-8 px-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">
+                  <span>Strongly Disagree</span>
+                  <span>Strongly Agree</span>
+                </div>
+              </>
+            )}
           </motion.div>
         )}
 
-        {/* --- UPDATED RESULTS VIEW (6 Categories) --- */}
+        {/* RESULTS VIEW */}
         {view === 'results' && results && (
           <motion.div key="results" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="max-w-5xl mx-auto px-6 py-20">
             <div className="text-center mb-16">
@@ -235,15 +267,20 @@ export default function App() {
 
             <div className="bg-slate-900 rounded-[3rem] p-10 md:p-14 text-white shadow-2xl flex flex-col md:flex-row gap-12 items-center">
               <div className="flex-1">
-                <h3 className="text-3xl font-black mb-6 underline decoration-teal-500 underline-offset-8 italic">AI Guidance</h3>
+                <h3 className="text-3xl font-black mb-6 underline decoration-teal-500 underline-offset-8 italic">Primary Focus Areas</h3>
+                <p className="text-slate-400 mb-4 font-bold text-teal-400 uppercase tracking-widest text-xs">Based on Priority Calculation:</p>
+                <div className="flex gap-4 mb-8">
+                  <span className="bg-slate-800 px-6 py-2 rounded-full border border-teal-500/30 font-bold text-teal-300">{priorities.p1}</span>
+                  <span className="bg-slate-800 px-6 py-2 rounded-full border border-slate-600 font-bold text-slate-300">{priorities.p2}</span>
+                </div>
                 <p className="text-slate-400 mb-8 font-medium italic leading-relaxed text-lg">
-                  "Based on your Academic and Home Environment scores, your current patterns suggest a need for boundary setting between study and family time. Prioritize 15 minutes of quiet decompression before bed."
+                  "Your current patterns suggest a strong correlation between <strong>{priorities.p1}</strong> and your overall wellness. We recommend setting small boundaries this week."
                 </p>
                 <button onClick={reset} className="bg-teal-500 text-white px-12 py-4 rounded-full font-black hover:scale-105 transition-transform active:scale-95 shadow-xl">Retake Assessment</button>
               </div>
               <div className="w-full md:w-1/3 bg-slate-800 p-8 rounded-[2rem] border border-slate-700">
-                <h4 className="font-bold mb-4 flex items-center gap-2 text-teal-400"><Info size={18} /> Quick Tip</h4>
-                <p className="text-sm text-slate-300 leading-relaxed">Try the '4-7-8' breathing technique for 2 minutes before your next study session. It helps reset your nervous system when academic pressure feels high.</p>
+                <h4 className="font-bold mb-4 flex items-center gap-2 text-teal-400"><Info size={18} /> Next Step</h4>
+                <p className="text-sm text-slate-300 leading-relaxed">Focus on <strong>{priorities.p1}</strong> first. High scores here often impact other areas like sleep and mood. Try a 5-minute reflection tonight.</p>
               </div>
             </div>
           </motion.div>
@@ -252,4 +289,3 @@ export default function App() {
     </div>
   );
 }
-
