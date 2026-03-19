@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/mindbloom-frontend/static/css/main.e6c13ad2.css",
-    "main.js": "/mindbloom-frontend/static/js/main.70bae1fa.js",
+    "main.js": "/mindbloom-frontend/static/js/main.05e86466.js",
     "static/js/453.a7e35703.chunk.js": "/mindbloom-frontend/static/js/453.a7e35703.chunk.js",
     "index.html": "/mindbloom-frontend/index.html",
     "main.e6c13ad2.css.map": "/mindbloom-frontend/static/css/main.e6c13ad2.css.map",
-    "main.70bae1fa.js.map": "/mindbloom-frontend/static/js/main.70bae1fa.js.map",
+    "main.05e86466.js.map": "/mindbloom-frontend/static/js/main.05e86466.js.map",
     "453.a7e35703.chunk.js.map": "/mindbloom-frontend/static/js/453.a7e35703.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.e6c13ad2.css",
-    "static/js/main.70bae1fa.js"
+    "static/js/main.05e86466.js"
   ]
 }
